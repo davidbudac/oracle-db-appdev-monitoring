@@ -12,6 +12,23 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+# Check if release already exists and delete it
+echo "Checking for existing release..."
+if gh release view "$VERSION" &>/dev/null; then
+    echo "Release $VERSION already exists. Deleting..."
+    gh release delete "$VERSION" --yes
+    echo "Existing release deleted."
+fi
+
+# Check if tag already exists and delete it
+echo "Checking for existing tag..."
+if git rev-parse "$VERSION" &>/dev/null; then
+    echo "Tag $VERSION already exists. Deleting..."
+    git tag -d "$VERSION"
+    git push origin ":refs/tags/$VERSION" 2>/dev/null || true
+    echo "Existing tag deleted."
+fi
+
 echo "Building AIX binary for $VERSION..."
 GOOS=aix GOARCH=ppc64 CGO_ENABLED=0 go build -tags goora -o oracledb_exporter-aix-ppc64 main.go
 tar -czf oracledb_exporter-aix-ppc64.tar.gz oracledb_exporter-aix-ppc64
