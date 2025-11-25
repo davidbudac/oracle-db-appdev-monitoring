@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -29,11 +31,10 @@ jobs:
           tar -czf oracledb_exporter-aix-ppc64.tar.gz oracledb_exporter-aix-ppc64
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            oracledb_exporter-aix-ppc64.tar.gz
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            oracledb_exporter-aix-ppc64.tar.gz \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
