@@ -34,7 +34,7 @@ GOOS=aix GOARCH=ppc64 CGO_ENABLED=0 go build -tags goora -o oracledb_exporter-ai
 tar -czf oracledb_exporter-aix-ppc64.tar.gz oracledb_exporter-aix-ppc64
 
 echo "Building Windows x64 binary for $VERSION..."
-GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -tags godror -o oracledb_exporter-windows-amd64.exe main.go
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags goora -o oracledb_exporter-windows-amd64.exe main.go
 zip oracledb_exporter-windows-amd64.zip oracledb_exporter-windows-amd64.exe
 
 echo "Creating git tag..."
