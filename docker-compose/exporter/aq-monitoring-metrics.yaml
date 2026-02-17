@@ -1,0 +1,364 @@
+# =============================================================================
+# Oracle Advanced Queuing (AQ) Monitoring Metrics
+# For use with Oracle AI Database Metrics Exporter
+#
+# Covers multi-consumer AQ queues using DBA_* views and GV$AQ.
+# Designed for Oracle 23ai / 26c.
+# For Oracle 19c, see the alternate join and column notes below.
+#
+# Required grants for the exporter database user:
+#   GRANT SELECT ON DBA_QUEUES TO <user>;
+#   GRANT SELECT ON DBA_QUEUE_TABLES TO <user>;
+#   GRANT SELECT ON DBA_QUEUE_SUBSCRIBERS TO <user>;
+#   GRANT SELECT ON DBA_SEGMENTS TO <user>;
+#   GRANT SELECT ON DBA_TABLES TO <user>;
+#   GRANT SELECT ON GV_$AQ TO <user>;
+# =============================================================================
+
+metrics:
+
+  # ---------------------------------------------------------------------------
+  # 1. Queue Depth — message counts by state from GV$AQ
+  #    Core metric: shows ready, waiting, expired, and total messages per queue.
+  # ---------------------------------------------------------------------------
+  - context: "aq_queue_depth"
+    labels: ["owner", "queue_name", "queue_table", "queue_type"]
+    metricsdesc:
+      msg_ready: "Number of messages in READY state."
+      msg_waiting: "Number of messages in WAITING state (delayed delivery)."
+      msg_expired: "Number of messages in EXPIRED state."
+      total_msgs: "Total messages across all states."
+      average_wait: "Average wait time in seconds for messages in the queue."
+      average_msg_age: "Average age of messages in seconds."
+    request: |
+      SELECT
+          q.owner,
+          q.name            AS queue_name,
+          q.queue_table,
+          CASE q.queue_type
+              WHEN 'NORMAL_QUEUE'    THEN 'NORMAL'
+              WHEN 'EXCEPTION_QUEUE' THEN 'EXCEPTION'
+              ELSE q.queue_type
+          END               AS queue_type,
+          NVL(a.ready, 0)   AS msg_ready,
+          NVL(a.waiting, 0) AS msg_waiting,
+          NVL(a.expired, 0) AS msg_expired,
+          NVL(a.waiting + a.ready + a.expired, 0) AS total_msgs,
+          NVL(a.average_wait, 0)    AS average_wait,
+          NVL(a.average_msg_age, 0) AS average_msg_age
+      FROM gv$aq a
+      JOIN dba_queues q
+          ON a.qid = q.qid
+      WHERE q.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 2. Exception Queue Summary — messages stuck in exception queues
+  #    Tracks failed messages that exhausted retries.
+  # ---------------------------------------------------------------------------
+  - context: "aq_exception_queue"
+    labels: ["owner", "queue_name", "queue_table"]
+    metricsdesc:
+      msg_ready: "Messages in READY state in the exception queue."
+      msg_expired: "Messages in EXPIRED state in the exception queue."
+    request: |
+      SELECT
+          q.owner,
+          q.name            AS queue_name,
+          q.queue_table,
+          NVL(a.ready, 0)   AS msg_ready,
+          NVL(a.expired, 0) AS msg_expired
+      FROM gv$aq a
+      JOIN dba_queues q
+          ON a.qid = q.qid
+      WHERE q.queue_type = 'EXCEPTION_QUEUE'
+      AND q.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+      AND (a.ready > 0 OR a.expired > 0)
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 3. Queue Table Storage — total size per queue table in MB
+  #    Includes the base table and all internal AQ segments.
+  # ---------------------------------------------------------------------------
+  - context: "aq_queue_table_storage"
+    labels: ["owner", "queue_table"]
+    metricsdesc:
+      total_size_mb: "Total storage used by the queue table and its internal segments in MB."
+      segment_count: "Number of segments (tables, indexes, LOBs) belonging to the queue table."
+    request: |
+      SELECT
+          qt.owner,
+          qt.queue_table,
+          ROUND(SUM(s.bytes) / 1024 / 1024, 2) AS total_size_mb,
+          COUNT(*) AS segment_count
+      FROM dba_queue_tables qt
+      JOIN dba_segments s
+          ON s.owner = qt.owner
+          AND (   s.segment_name = qt.queue_table
+               OR s.segment_name LIKE 'AQ$\_' || qt.queue_table || '\_%' ESCAPE '\'
+          )
+      WHERE qt.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+      GROUP BY qt.owner, qt.queue_table
+    ignorezeroresult: true
+    querytimeout: "15s"
+
+  # ---------------------------------------------------------------------------
+  # 4. Queue Table Row Estimates — estimated row counts from DBA_TABLES
+  #    Useful for detecting queue tables that are growing unexpectedly.
+  # ---------------------------------------------------------------------------
+  - context: "aq_queue_table_rows"
+    labels: ["owner", "queue_table"]
+    metricsdesc:
+      estimated_rows: "Estimated number of rows in the queue table from optimizer statistics."
+    request: |
+      SELECT
+          qt.owner,
+          qt.queue_table,
+          NVL(t.num_rows, 0) AS estimated_rows
+      FROM dba_queue_tables qt
+      LEFT JOIN dba_tables t
+          ON t.owner = qt.owner
+          AND t.table_name = qt.queue_table
+      WHERE qt.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+    querytimeout: "10s"
+
+  # ---------------------------------------------------------------------------
+  # 5. Queue Configuration — key settings per queue
+  #    Exposes enqueue/dequeue enabled flags, retry settings, and retention.
+  # ---------------------------------------------------------------------------
+  - context: "aq_queue_config"
+    labels: ["owner", "queue_name", "queue_table", "queue_type"]
+    metricsdesc:
+      enqueue_enabled: "Whether enqueue is enabled (1=YES, 0=NO)."
+      dequeue_enabled: "Whether dequeue is enabled (1=YES, 0=NO)."
+      max_retries: "Maximum number of dequeue retries before moving to exception queue."
+      retry_delay: "Delay in seconds between retry attempts."
+      retention_seconds: "Message retention period in seconds (-1 means forever)."
+    request: |
+      SELECT
+          q.owner,
+          q.name            AS queue_name,
+          q.queue_table,
+          CASE q.queue_type
+              WHEN 'NORMAL_QUEUE'    THEN 'NORMAL'
+              WHEN 'EXCEPTION_QUEUE' THEN 'EXCEPTION'
+              ELSE q.queue_type
+          END               AS queue_type,
+          CASE WHEN q.enqueue_enabled = 'YES' THEN 1 ELSE 0 END AS enqueue_enabled,
+          CASE WHEN q.dequeue_enabled = 'YES' THEN 1 ELSE 0 END AS dequeue_enabled,
+          NVL(q.max_retries, 0) AS max_retries,
+          NVL(q.retry_delay, 0) AS retry_delay,
+          CASE
+              WHEN TRIM(q.retention) IN ('FOREVER', '-1') THEN -1
+              ELSE TO_NUMBER(q.retention DEFAULT 0 ON CONVERSION ERROR)
+          END AS retention_seconds
+      FROM dba_queues q
+      WHERE q.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 6. Subscriber Count — number of registered subscribers per queue
+  # ---------------------------------------------------------------------------
+  - context: "aq_subscribers"
+    labels: ["owner", "queue_name"]
+    metricsdesc:
+      subscriber_count: "Number of registered subscribers for the queue."
+    request: |
+      SELECT
+          s.owner,
+          s.queue_name,
+          COUNT(*) AS subscriber_count
+      FROM dba_queue_subscribers s
+      WHERE s.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+      GROUP BY s.owner, s.queue_name
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 7. Configuration Issues — count of queues with potential problems
+  #    Tracks disabled enqueue/dequeue, zero retries, and infinite retention.
+  # ---------------------------------------------------------------------------
+  - context: "aq_config_issues"
+    labels: ["issue_type"]
+    metricsdesc:
+      issue_count: "Number of queues with this configuration issue."
+    request: |
+      SELECT issue_type, COUNT(*) AS issue_count FROM (
+          SELECT 'enqueue_disabled' AS issue_type
+          FROM dba_queues
+          WHERE enqueue_enabled = 'NO'
+          AND queue_type = 'NORMAL_QUEUE'
+          AND owner NOT IN (
+              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+              'APPQOSSYS','DBSFWUSER','DBSNMP'
+          )
+          UNION ALL
+          SELECT 'dequeue_disabled' AS issue_type
+          FROM dba_queues
+          WHERE dequeue_enabled = 'NO'
+          AND queue_type = 'NORMAL_QUEUE'
+          AND owner NOT IN (
+              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+              'APPQOSSYS','DBSFWUSER','DBSNMP'
+          )
+          UNION ALL
+          SELECT 'zero_retries' AS issue_type
+          FROM dba_queues
+          WHERE max_retries = 0
+          AND queue_type = 'NORMAL_QUEUE'
+          AND owner NOT IN (
+              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+              'APPQOSSYS','DBSFWUSER','DBSNMP'
+          )
+          UNION ALL
+          SELECT 'infinite_retention' AS issue_type
+          FROM dba_queues
+          WHERE TRIM(retention) IN ('FOREVER', '-1')
+          AND owner NOT IN (
+              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+              'APPQOSSYS','DBSFWUSER','DBSNMP'
+          )
+      )
+      GROUP BY issue_type
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 8. Queue Table Config Info — recipients type, message grouping, sort order
+  #    Useful as info labels for correlating with other AQ metrics.
+  # ---------------------------------------------------------------------------
+  - context: "aq_queue_table_config"
+    labels: ["owner", "queue_table", "recipients", "message_grouping", "sort_order", "compatible"]
+    metricsdesc:
+      info: "Info metric (always 1). Use labels to see queue table configuration."
+    request: |
+      SELECT
+          owner,
+          queue_table,
+          recipients,
+          NVL(message_grouping, 'NONE') AS message_grouping,
+          NVL(sort_order, 'ENQ_TIME')   AS sort_order,
+          NVL(compatible, 'N/A')        AS compatible,
+          1 AS info
+      FROM dba_queue_tables
+      WHERE owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 9. Normal Queue Throughput Snapshot — ready/waiting/expired for normal queues
+  #    Scrape at a regular interval and use rate() or delta() in Prometheus
+  #    to compute enqueue/dequeue throughput.
+  # ---------------------------------------------------------------------------
+  - context: "aq_throughput"
+    labels: ["owner", "queue_name", "queue_table"]
+    metricsdesc:
+      msg_ready: "Current ready messages (use delta to compute flow rate)."
+      msg_waiting: "Current waiting messages."
+      msg_expired: "Current expired messages."
+      average_wait: "Average wait time in seconds."
+    request: |
+      SELECT
+          q.owner,
+          q.name              AS queue_name,
+          q.queue_table,
+          NVL(a.ready, 0)     AS msg_ready,
+          NVL(a.waiting, 0)   AS msg_waiting,
+          NVL(a.expired, 0)   AS msg_expired,
+          NVL(a.average_wait, 0) AS average_wait
+      FROM gv$aq a
+      JOIN dba_queues q
+          ON a.qid = q.qid
+      WHERE q.queue_type = 'NORMAL_QUEUE'
+      AND q.owner NOT IN (
+          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
+          'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+
+# =============================================================================
+# TEMPLATE METRICS — Per-Queue-Table Customization
+#
+# The metrics below query AQ$<queue_table> views which are specific to each
+# queue table. Uncomment and duplicate these for each queue table you want
+# to monitor at the subscriber level.
+#
+# Replace MYSCHEMA and MY_QUEUE_TABLE with your actual schema and queue table.
+# =============================================================================
+#
+#   # Per-subscriber message lag for a specific queue table
+#   - context: "aq_subscriber_lag_MY_QUEUE_TABLE"
+#     labels: ["owner", "queue_name", "consumer_name", "msg_state"]
+#     metricsdesc:
+#       msg_count: "Number of messages per subscriber per state."
+#     request: |
+#       SELECT
+#           'MYSCHEMA'     AS owner,
+#           queue          AS queue_name,
+#           consumer_name,
+#           msg_state,
+#           COUNT(*)       AS msg_count
+#       FROM MYSCHEMA.AQ$MY_QUEUE_TABLE
+#       WHERE msg_state IN ('READY', 'WAIT', 'EXPIRED')
+#       GROUP BY queue, consumer_name, msg_state
+#     ignorezeroresult: true
+#
+#   # Oldest message age per queue within a specific queue table
+#   - context: "aq_message_age_MY_QUEUE_TABLE"
+#     labels: ["owner", "queue_name"]
+#     metricsdesc:
+#       oldest_age_seconds: "Age of the oldest READY message in seconds."
+#       ready_count: "Number of messages in READY state."
+#     request: |
+#       SELECT
+#           'MYSCHEMA'     AS owner,
+#           queue          AS queue_name,
+#           EXTRACT(DAY FROM (SYSTIMESTAMP - MIN(enq_time))) * 86400 +
+#           EXTRACT(HOUR FROM (SYSTIMESTAMP - MIN(enq_time))) * 3600 +
+#           EXTRACT(MINUTE FROM (SYSTIMESTAMP - MIN(enq_time))) * 60 +
+#           ROUND(EXTRACT(SECOND FROM (SYSTIMESTAMP - MIN(enq_time)))) AS oldest_age_seconds,
+#           COUNT(*) AS ready_count
+#       FROM MYSCHEMA.AQ$MY_QUEUE_TABLE
+#       WHERE msg_state = 'READY'
+#       GROUP BY queue
+#     ignorezeroresult: true
+#
+#   # Message volume by time bucket for a specific queue table
+#   - context: "aq_volume_MY_QUEUE_TABLE"
+#     labels: ["owner", "queue_name"]
+#     metricsdesc:
+#       last_5m: "Messages enqueued in the last 5 minutes."
+#       last_15m: "Messages enqueued in the last 15 minutes."
+#       last_1h: "Messages enqueued in the last 1 hour."
+#       last_24h: "Messages enqueued in the last 24 hours."
+#     request: |
+#       SELECT
+#           'MYSCHEMA'   AS owner,
+#           queue        AS queue_name,
+#           SUM(CASE WHEN enq_time >= SYSTIMESTAMP - INTERVAL '5' MINUTE THEN 1 ELSE 0 END)  AS last_5m,
+#           SUM(CASE WHEN enq_time >= SYSTIMESTAMP - INTERVAL '15' MINUTE THEN 1 ELSE 0 END) AS last_15m,
+#           SUM(CASE WHEN enq_time >= SYSTIMESTAMP - INTERVAL '1' HOUR THEN 1 ELSE 0 END)    AS last_1h,
+#           COUNT(*) AS last_24h
+#       FROM MYSCHEMA.AQ$MY_QUEUE_TABLE
+#       WHERE enq_time >= SYSTIMESTAMP - INTERVAL '24' HOUR
+#       GROUP BY queue
+#     ignorezeroresult: true

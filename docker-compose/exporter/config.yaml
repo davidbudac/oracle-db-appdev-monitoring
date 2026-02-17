@@ -63,6 +63,7 @@ metrics:
   custom:
     - /exporter/txeventq-metrics.toml
     - /exporter/more-txeventq-metrics.toml
+    - /exporter/aq-monitoring-metrics.yaml
 
 log:
   # Path of log file
