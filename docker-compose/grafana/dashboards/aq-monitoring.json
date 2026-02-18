@@ -53,7 +53,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "id": 2,
       "options": {
         "colorMode": "value",
@@ -70,7 +70,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "sum(oracledb_aq_queue_depth_total_msgs{queue_type=\"NORMAL\"})",
+          "expr": "sum(oracledb_aq_queue_depth_total_msgs{database=\"default\",queue_type=\"NORMAL\"})",
           "legendFormat": "Total Messages",
           "refId": "A"
         }
@@ -95,7 +95,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "id": 3,
       "options": {
         "colorMode": "value",
@@ -112,96 +112,12 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "sum(oracledb_aq_queue_depth_msg_ready{queue_type=\"NORMAL\"})",
+          "expr": "sum(oracledb_aq_queue_depth_msg_ready{database=\"default\",queue_type=\"NORMAL\"})",
           "legendFormat": "Ready Messages",
           "refId": "A"
         }
       ],
       "title": "Ready Messages",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Total messages in exception queues",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 1 },
-              { "color": "red", "value": 10 }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "sum(oracledb_aq_exception_queue_msg_ready) + sum(oracledb_aq_exception_queue_msg_expired)",
-          "legendFormat": "Exception Messages",
-          "refId": "A"
-        }
-      ],
-      "title": "Exception Queue Messages",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Number of configuration issues detected",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 5 }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "id": 5,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "sum(oracledb_aq_config_issues_issue_count)",
-          "legendFormat": "Issues",
-          "refId": "A"
-        }
-      ],
-      "title": "Config Issues",
       "type": "stat"
     },
     {
@@ -222,7 +138,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "id": 6,
       "options": {
         "colorMode": "value",
@@ -239,12 +155,12 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "avg(oracledb_aq_queue_depth_average_wait{queue_type=\"NORMAL\"})",
-          "legendFormat": "Avg Wait",
+          "expr": "avg(oracledb_aq_msg_age_avg_age_seconds{database=\"default\"})",
+          "legendFormat": "Avg Age",
           "refId": "A"
         }
       ],
-      "title": "Avg Wait Time",
+      "title": "Avg Message Age",
       "type": "stat"
     },
     {
@@ -265,7 +181,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "id": 7,
       "options": {
         "colorMode": "value",
@@ -282,7 +198,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "sum(oracledb_aq_queue_table_storage_total_size_mb)",
+          "expr": "sum(oracledb_aq_queue_table_storage_total_size_mb{database=\"default\"})",
           "legendFormat": "Total Storage MB",
           "refId": "A"
         }
@@ -346,12 +262,12 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_depth_msg_ready{queue_type=\"NORMAL\"}",
+          "expr": "oracledb_aq_queue_depth_msg_ready{database=\"default\",queue_type=\"NORMAL\"}",
           "legendFormat": "{{queue_name}} ready",
           "refId": "A"
         },
         {
-          "expr": "oracledb_aq_queue_depth_msg_waiting{queue_type=\"NORMAL\"}",
+          "expr": "oracledb_aq_queue_depth_msg_waiting{database=\"default\",queue_type=\"NORMAL\"}",
           "legendFormat": "{{queue_name}} waiting",
           "refId": "B"
         }
@@ -407,7 +323,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_depth_total_msgs{queue_type=\"NORMAL\"}",
+          "expr": "oracledb_aq_queue_depth_total_msgs{database=\"default\",queue_type=\"NORMAL\"}",
           "legendFormat": "{{owner}}.{{queue_name}}",
           "refId": "A"
         }
@@ -462,12 +378,12 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_depth_average_wait{queue_type=\"NORMAL\"}",
+          "expr": "oracledb_aq_msg_age_avg_age_seconds{database=\"default\"}",
           "legendFormat": "{{queue_name}}",
           "refId": "A"
         }
       ],
-      "title": "Average Wait Time Per Queue",
+      "title": "Avg Message Age Per Queue",
       "type": "timeseries"
     },
     {
@@ -517,184 +433,17 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_depth_average_msg_age{queue_type=\"NORMAL\"}",
+          "expr": "oracledb_aq_msg_age_oldest_age_seconds{database=\"default\"}",
           "legendFormat": "{{queue_name}}",
           "refId": "A"
         }
       ],
-      "title": "Average Message Age Per Queue",
+      "title": "Oldest Message Age Per Queue",
       "type": "timeseries"
     },
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
-      "id": 20,
-      "panels": [],
-      "title": "Exception Queues",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Messages in exception queues by queue name",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Messages",
-            "axisPlacement": "auto",
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "normal" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byRegexp", "options": ".*ready.*" },
-            "properties": [
-              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
-            ]
-          },
-          {
-            "matcher": { "id": "byRegexp", "options": ".*expired.*" },
-            "properties": [
-              { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
-            ]
-          }
-        ]
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
-      "id": 21,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "oracledb_aq_exception_queue_msg_ready",
-          "legendFormat": "{{queue_name}} ready",
-          "refId": "A"
-        },
-        {
-          "expr": "oracledb_aq_exception_queue_msg_expired",
-          "legendFormat": "{{queue_name}} expired",
-          "refId": "B"
-        }
-      ],
-      "title": "Exception Queue Messages Over Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Queues with messages in exception state",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 1 },
-              { "color": "red", "value": 10 }
-            ]
-          },
-          "custom": {
-            "align": "auto",
-            "displayMode": "auto",
-            "inspect": false
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "Value #A" },
-            "properties": [
-              { "id": "displayName", "value": "Ready" },
-              { "id": "custom.displayMode", "value": "color-background" }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Value #B" },
-            "properties": [
-              { "id": "displayName", "value": "Expired" },
-              { "id": "custom.displayMode", "value": "color-background" }
-            ]
-          }
-        ]
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
-      "id": 22,
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          { "desc": true, "displayName": "Ready" }
-        ]
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "oracledb_aq_exception_queue_msg_ready",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "expr": "oracledb_aq_exception_queue_msg_expired",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "B"
-        }
-      ],
-      "title": "Exception Queue Detail",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "database": true,
-              "instance": true,
-              "job": true
-            },
-            "renameByName": {
-              "owner": "Owner",
-              "queue_name": "Exception Queue",
-              "queue_table": "Queue Table"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
       "id": 30,
       "panels": [],
       "title": "Queue Table Storage",
@@ -733,7 +482,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
       "id": 31,
       "options": {
         "legend": {
@@ -747,7 +496,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_table_storage_total_size_mb",
+          "expr": "oracledb_aq_queue_table_storage_total_size_mb{database=\"default\"}",
           "legendFormat": "{{owner}}.{{queue_table}}",
           "refId": "A"
         }
@@ -787,7 +536,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
       "id": 32,
       "options": {
         "legend": {
@@ -801,7 +550,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_table_rows_estimated_rows",
+          "expr": "oracledb_aq_queue_table_rows_estimated_rows{database=\"default\"}",
           "legendFormat": "{{owner}}.{{queue_table}}",
           "refId": "A"
         }
@@ -811,7 +560,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
       "id": 40,
       "panels": [],
       "title": "Queue Configuration",
@@ -895,7 +644,7 @@
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 43 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 34 },
       "id": 41,
       "options": {
         "showHeader": true,
@@ -906,31 +655,31 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_queue_config_enqueue_enabled",
+          "expr": "oracledb_aq_queue_config_enqueue_enabled{database=\"default\"}",
           "format": "table",
           "instant": true,
           "refId": "A"
         },
         {
-          "expr": "oracledb_aq_queue_config_dequeue_enabled",
+          "expr": "oracledb_aq_queue_config_dequeue_enabled{database=\"default\"}",
           "format": "table",
           "instant": true,
           "refId": "B"
         },
         {
-          "expr": "oracledb_aq_queue_config_max_retries",
+          "expr": "oracledb_aq_queue_config_max_retries{database=\"default\"}",
           "format": "table",
           "instant": true,
           "refId": "C"
         },
         {
-          "expr": "oracledb_aq_queue_config_retry_delay",
+          "expr": "oracledb_aq_queue_config_retry_delay{database=\"default\"}",
           "format": "table",
           "instant": true,
           "refId": "D"
         },
         {
-          "expr": "oracledb_aq_queue_config_retention_seconds",
+          "expr": "oracledb_aq_queue_config_retention_seconds{database=\"default\"}",
           "format": "table",
           "instant": true,
           "refId": "E"
@@ -970,10 +719,10 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
       "id": 50,
       "panels": [],
-      "title": "Subscribers & Config Issues",
+      "title": "Subscribers",
       "type": "row"
     },
     {
@@ -1003,7 +752,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 45 },
       "id": 51,
       "options": {
         "barRadius": 0.1,
@@ -1024,7 +773,7 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "oracledb_aq_subscribers_subscriber_count",
+          "expr": "oracledb_aq_subscribers_subscriber_count{database=\"default\"}",
           "legendFormat": "{{owner}}.{{queue_name}}",
           "refId": "A"
         }
@@ -1033,65 +782,8 @@
       "type": "barchart"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Count of configuration issues by type",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 3 }
-            ]
-          },
-          "custom": {
-            "align": "auto",
-            "displayMode": "color-background",
-            "inspect": false
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
-      "id": 52,
-      "options": {
-        "showHeader": true
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "oracledb_aq_config_issues_issue_count",
-          "format": "table",
-          "instant": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Configuration Issues",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "database": true,
-              "instance": true,
-              "job": true
-            },
-            "renameByName": {
-              "issue_type": "Issue Type",
-              "Value": "Count"
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
       "id": 60,
       "panels": [],
       "title": "Throughput",
@@ -1130,7 +822,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 63 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 54 },
       "id": 61,
       "options": {
         "legend": {
@@ -1144,67 +836,12 @@
       "pluginVersion": "10.1.1",
       "targets": [
         {
-          "expr": "deriv(oracledb_aq_throughput_msg_ready[5m])",
+          "expr": "deriv(oracledb_aq_throughput_msg_ready{database=\"default\"}[5m])",
           "legendFormat": "{{queue_name}} ready rate",
           "refId": "A"
         }
       ],
       "title": "Ready Message Rate of Change",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "description": "Change rate of expired messages (proxy for message failure rate)",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "ops",
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "msgs/sec",
-            "axisPlacement": "auto",
-            "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 63 },
-      "id": 62,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull", "max", "mean"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "pluginVersion": "10.1.1",
-      "targets": [
-        {
-          "expr": "deriv(oracledb_aq_throughput_msg_expired[5m])",
-          "legendFormat": "{{queue_name}} expiry rate",
-          "refId": "A"
-        }
-      ],
-      "title": "Expired Message Rate of Change",
       "type": "timeseries"
     }
   ],

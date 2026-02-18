@@ -49,16 +49,6 @@ BEGIN
         v_enqueue_count := TRUNC(DBMS_RANDOM.VALUE(5, 9));
         enqueue_messages('PDBADMIN.BACKLOG_Q', v_enqueue_count, 'backlog', v_round);
 
-        -- ERRORS_Q: 2 messages per round
-        enqueue_messages('PDBADMIN.ERRORS_Q', 2, 'error-prone', v_round);
-
-        -- MISCONFIG_Q: 1 message per round (dequeue disabled, accumulates)
-        BEGIN
-            enqueue_messages('PDBADMIN.MISCONFIG_Q', 1, 'stuck', v_round);
-        EXCEPTION
-            WHEN OTHERS THEN NULL;
-        END;
-
         DBMS_OUTPUT.PUT_LINE('[enqueue round ' || v_round || '/50] done');
         DBMS_SESSION.SLEEP(10);
     END LOOP;

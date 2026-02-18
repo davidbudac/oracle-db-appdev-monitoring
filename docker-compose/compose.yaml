@@ -42,22 +42,6 @@ services:
       retries: 5
       start_period: 30s
 
-  second23ai:
-    image: gvenzl/oracle-free:23.9-slim-faststart
-    container_name: second23ai
-    ports:
-      - 1522:1521
-    environment:
-      - ORACLE_PASSWORD=Welcome12345
-    volumes:
-      - ./oracle:/container-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "lsnrctl status | grep READY"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
   traffic-generator:
     image: gvenzl/oracle-free:23.9-slim-faststart
     container_name: traffic-generator
@@ -98,10 +82,8 @@ services:
     volumes:
       - ./exporter:/exporter
 
-    depends_on: 
+    depends_on:
       free23ai:
-        condition: service_healthy
-      second23ai:
         condition: service_healthy
 
 volumes:

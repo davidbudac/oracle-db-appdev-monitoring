@@ -20,6 +20,10 @@ metrics:
   # ---------------------------------------------------------------------------
   # 1. Queue Depth — message counts by state from GV$AQ
   #    Core metric: shows ready, waiting, expired, and total messages per queue.
+  #    NOTE: GV$AQ.AVERAGE_WAIT and AVERAGE_MSG_AGE return overflow garbage in
+  #    Oracle 23ai for multi-consumer queues with active traffic. These columns
+  #    are intentionally excluded. Use metric #8 (aq_msg_age) for reliable
+  #    average message age computed from ENQ_TIME.
   # ---------------------------------------------------------------------------
   - context: "aq_queue_depth"
     labels: ["owner", "queue_name", "queue_table", "queue_type"]
@@ -28,8 +32,6 @@ metrics:
       msg_waiting: "Number of messages in WAITING state (delayed delivery)."
       msg_expired: "Number of messages in EXPIRED state."
       total_msgs: "Total messages across all states."
-      average_wait: "Average wait time in seconds for messages in the queue."
-      average_msg_age: "Average age of messages in seconds."
     request: |
       SELECT
           q.owner,
@@ -43,9 +45,7 @@ metrics:
           NVL(a.ready, 0)   AS msg_ready,
           NVL(a.waiting, 0) AS msg_waiting,
           NVL(a.expired, 0) AS msg_expired,
-          NVL(a.waiting + a.ready + a.expired, 0) AS total_msgs,
-          LEAST(NVL(a.average_wait, 0), 86400)    AS average_wait,
-          LEAST(NVL(a.average_msg_age, 0), 86400) AS average_msg_age
+          NVL(a.waiting + a.ready + a.expired, 0) AS total_msgs
       FROM gv$aq a
       JOIN dba_queues q
           ON a.qid = q.qid
@@ -56,34 +56,7 @@ metrics:
     ignorezeroresult: true
 
   # ---------------------------------------------------------------------------
-  # 2. Exception Queue Summary — messages stuck in exception queues
-  #    Tracks failed messages that exhausted retries.
-  # ---------------------------------------------------------------------------
-  - context: "aq_exception_queue"
-    labels: ["owner", "queue_name", "queue_table"]
-    metricsdesc:
-      msg_ready: "Messages in READY state in the exception queue."
-      msg_expired: "Messages in EXPIRED state in the exception queue."
-    request: |
-      SELECT
-          q.owner,
-          q.name            AS queue_name,
-          q.queue_table,
-          NVL(a.ready, 0)   AS msg_ready,
-          NVL(a.expired, 0) AS msg_expired
-      FROM gv$aq a
-      JOIN dba_queues q
-          ON a.qid = q.qid
-      WHERE q.queue_type = 'EXCEPTION_QUEUE'
-      AND q.owner NOT IN (
-          'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
-          'APPQOSSYS','DBSFWUSER','DBSNMP'
-      )
-      AND (a.ready > 0 OR a.expired > 0)
-    ignorezeroresult: true
-
-  # ---------------------------------------------------------------------------
-  # 3. Queue Table Storage — total size per queue table in MB
+  # 2. Queue Table Storage — total size per queue table in MB
   #    Includes the base table and all internal AQ segments.
   # ---------------------------------------------------------------------------
   - context: "aq_queue_table_storage"
@@ -112,7 +85,7 @@ metrics:
     querytimeout: "15s"
 
   # ---------------------------------------------------------------------------
-  # 4. Queue Table Row Estimates — estimated row counts from DBA_TABLES
+  # 3. Queue Table Row Estimates — estimated row counts from DBA_TABLES
   #    Useful for detecting queue tables that are growing unexpectedly.
   # ---------------------------------------------------------------------------
   - context: "aq_queue_table_rows"
@@ -136,7 +109,7 @@ metrics:
     querytimeout: "10s"
 
   # ---------------------------------------------------------------------------
-  # 5. Queue Configuration — key settings per queue
+  # 4. Queue Configuration — key settings per queue
   #    Exposes enqueue/dequeue enabled flags, retry settings, and retention.
   # ---------------------------------------------------------------------------
   - context: "aq_queue_config"
@@ -157,8 +130,8 @@ metrics:
               WHEN 'EXCEPTION_QUEUE' THEN 'EXCEPTION'
               ELSE q.queue_type
           END               AS queue_type,
-          CASE WHEN q.enqueue_enabled = 'YES' THEN 1 ELSE 0 END AS enqueue_enabled,
-          CASE WHEN q.dequeue_enabled = 'YES' THEN 1 ELSE 0 END AS dequeue_enabled,
+          CASE WHEN TRIM(q.enqueue_enabled) = 'YES' THEN 1 ELSE 0 END AS enqueue_enabled,
+          CASE WHEN TRIM(q.dequeue_enabled) = 'YES' THEN 1 ELSE 0 END AS dequeue_enabled,
           NVL(q.max_retries, 0) AS max_retries,
           NVL(q.retry_delay, 0) AS retry_delay,
           CASE
@@ -173,7 +146,7 @@ metrics:
     ignorezeroresult: true
 
   # ---------------------------------------------------------------------------
-  # 6. Subscriber Count — number of registered subscribers per queue
+  # 5. Subscriber Count — number of registered subscribers per queue
   # ---------------------------------------------------------------------------
   - context: "aq_subscribers"
     labels: ["owner", "queue_name"]
@@ -193,55 +166,7 @@ metrics:
     ignorezeroresult: true
 
   # ---------------------------------------------------------------------------
-  # 7. Configuration Issues — count of queues with potential problems
-  #    Tracks disabled enqueue/dequeue, zero retries, and infinite retention.
-  # ---------------------------------------------------------------------------
-  - context: "aq_config_issues"
-    labels: ["issue_type"]
-    metricsdesc:
-      issue_count: "Number of queues with this configuration issue."
-    request: |
-      SELECT issue_type, COUNT(*) AS issue_count FROM (
-          SELECT 'enqueue_disabled' AS issue_type
-          FROM dba_queues
-          WHERE enqueue_enabled = 'NO'
-          AND queue_type = 'NORMAL_QUEUE'
-          AND owner NOT IN (
-              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
-              'APPQOSSYS','DBSFWUSER','DBSNMP'
-          )
-          UNION ALL
-          SELECT 'dequeue_disabled' AS issue_type
-          FROM dba_queues
-          WHERE dequeue_enabled = 'NO'
-          AND queue_type = 'NORMAL_QUEUE'
-          AND owner NOT IN (
-              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
-              'APPQOSSYS','DBSFWUSER','DBSNMP'
-          )
-          UNION ALL
-          SELECT 'zero_retries' AS issue_type
-          FROM dba_queues
-          WHERE max_retries = 0
-          AND queue_type = 'NORMAL_QUEUE'
-          AND owner NOT IN (
-              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
-              'APPQOSSYS','DBSFWUSER','DBSNMP'
-          )
-          UNION ALL
-          SELECT 'infinite_retention' AS issue_type
-          FROM dba_queues
-          WHERE TRIM(retention) IN ('FOREVER', '-1')
-          AND owner NOT IN (
-              'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
-              'APPQOSSYS','DBSFWUSER','DBSNMP'
-          )
-      )
-      GROUP BY issue_type
-    ignorezeroresult: true
-
-  # ---------------------------------------------------------------------------
-  # 8. Queue Table Config Info — recipients type, message grouping, sort order
+  # 6. Queue Table Config Info — recipients type, message grouping, sort order
   #    Useful as info labels for correlating with other AQ metrics.
   # ---------------------------------------------------------------------------
   - context: "aq_queue_table_config"
@@ -265,7 +190,7 @@ metrics:
     ignorezeroresult: true
 
   # ---------------------------------------------------------------------------
-  # 9. Normal Queue Throughput Snapshot — ready/waiting/expired for normal queues
+  # 7. Normal Queue Throughput Snapshot — ready/waiting/expired for normal queues
   #    Scrape at a regular interval and use rate() or delta() in Prometheus
   #    to compute enqueue/dequeue throughput.
   # ---------------------------------------------------------------------------
@@ -275,7 +200,6 @@ metrics:
       msg_ready: "Current ready messages (use delta to compute flow rate)."
       msg_waiting: "Current waiting messages."
       msg_expired: "Current expired messages."
-      average_wait: "Average wait time in seconds."
     request: |
       SELECT
           q.owner,
@@ -283,8 +207,7 @@ metrics:
           q.queue_table,
           NVL(a.ready, 0)     AS msg_ready,
           NVL(a.waiting, 0)   AS msg_waiting,
-          NVL(a.expired, 0)   AS msg_expired,
-          LEAST(NVL(a.average_wait, 0), 86400) AS average_wait
+          NVL(a.expired, 0)   AS msg_expired
       FROM gv$aq a
       JOIN dba_queues q
           ON a.qid = q.qid
@@ -292,6 +215,64 @@ metrics:
       AND q.owner NOT IN (
           'SYS','SYSTEM','GSMADMIN_INTERNAL','XDB',
           'APPQOSSYS','DBSFWUSER','DBSNMP'
+      )
+    ignorezeroresult: true
+
+  # ---------------------------------------------------------------------------
+  # 8. Message Age — computed from ENQ_TIME in AQ$ queue table views
+  #     Replaces the broken GV$AQ.AVERAGE_WAIT / AVERAGE_MSG_AGE columns
+  #     which return numeric overflow in Oracle 23ai for multi-consumer queues.
+  #     Uses UNION ALL across known queue tables in this docker-compose setup.
+  #     For production, duplicate the sub-selects for each queue table.
+  # ---------------------------------------------------------------------------
+  - context: "aq_msg_age"
+    labels: ["owner", "queue_name"]
+    metricsdesc:
+      avg_age_seconds: "Average age of READY messages in seconds."
+      oldest_age_seconds: "Age of the oldest READY message in seconds."
+      ready_count: "Number of messages in READY state."
+    request: |
+      SELECT owner, queue_name, avg_age_seconds, oldest_age_seconds, ready_count
+      FROM (
+          SELECT
+              'PDBADMIN' AS owner,
+              queue AS queue_name,
+              ROUND(AVG(
+                  EXTRACT(DAY FROM (SYSTIMESTAMP - enq_time)) * 86400 +
+                  EXTRACT(HOUR FROM (SYSTIMESTAMP - enq_time)) * 3600 +
+                  EXTRACT(MINUTE FROM (SYSTIMESTAMP - enq_time)) * 60 +
+                  EXTRACT(SECOND FROM (SYSTIMESTAMP - enq_time))
+              ), 2) AS avg_age_seconds,
+              ROUND(MAX(
+                  EXTRACT(DAY FROM (SYSTIMESTAMP - enq_time)) * 86400 +
+                  EXTRACT(HOUR FROM (SYSTIMESTAMP - enq_time)) * 3600 +
+                  EXTRACT(MINUTE FROM (SYSTIMESTAMP - enq_time)) * 60 +
+                  EXTRACT(SECOND FROM (SYSTIMESTAMP - enq_time))
+              ), 2) AS oldest_age_seconds,
+              COUNT(*) AS ready_count
+          FROM PDBADMIN.AQ$HEALTHY_QT
+          WHERE msg_state = 'READY'
+          GROUP BY queue
+          UNION ALL
+          SELECT
+              'PDBADMIN' AS owner,
+              queue AS queue_name,
+              ROUND(AVG(
+                  EXTRACT(DAY FROM (SYSTIMESTAMP - enq_time)) * 86400 +
+                  EXTRACT(HOUR FROM (SYSTIMESTAMP - enq_time)) * 3600 +
+                  EXTRACT(MINUTE FROM (SYSTIMESTAMP - enq_time)) * 60 +
+                  EXTRACT(SECOND FROM (SYSTIMESTAMP - enq_time))
+              ), 2) AS avg_age_seconds,
+              ROUND(MAX(
+                  EXTRACT(DAY FROM (SYSTIMESTAMP - enq_time)) * 86400 +
+                  EXTRACT(HOUR FROM (SYSTIMESTAMP - enq_time)) * 3600 +
+                  EXTRACT(MINUTE FROM (SYSTIMESTAMP - enq_time)) * 60 +
+                  EXTRACT(SECOND FROM (SYSTIMESTAMP - enq_time))
+              ), 2) AS oldest_age_seconds,
+              COUNT(*) AS ready_count
+          FROM PDBADMIN.AQ$BACKLOG_QT
+          WHERE msg_state = 'READY'
+          GROUP BY queue
       )
     ignorezeroresult: true
 

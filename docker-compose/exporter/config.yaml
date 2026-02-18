@@ -45,14 +45,6 @@ databases:
     ## Oracle Database Connection pool minimum size
     # poolMinConnections: 15
 
-  second:
-    username: pdbadmin
-    password: Welcome12345
-    url: second23ai:1521/freepdb1
-    queryTimeout: 5
-    maxOpenConns: 10
-    maxIdleConns: 10
-
 
 metrics:
   ## How often to scrape metrics. If not provided, metrics will be scraped on request.
