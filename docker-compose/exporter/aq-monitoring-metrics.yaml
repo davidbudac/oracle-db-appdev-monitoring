@@ -44,8 +44,8 @@ metrics:
           NVL(a.waiting, 0) AS msg_waiting,
           NVL(a.expired, 0) AS msg_expired,
           NVL(a.waiting + a.ready + a.expired, 0) AS total_msgs,
-          NVL(a.average_wait, 0)    AS average_wait,
-          NVL(a.average_msg_age, 0) AS average_msg_age
+          LEAST(NVL(a.average_wait, 0), 86400)    AS average_wait,
+          LEAST(NVL(a.average_msg_age, 0), 86400) AS average_msg_age
       FROM gv$aq a
       JOIN dba_queues q
           ON a.qid = q.qid
@@ -284,7 +284,7 @@ metrics:
           NVL(a.ready, 0)     AS msg_ready,
           NVL(a.waiting, 0)   AS msg_waiting,
           NVL(a.expired, 0)   AS msg_expired,
-          NVL(a.average_wait, 0) AS average_wait
+          LEAST(NVL(a.average_wait, 0), 86400) AS average_wait
       FROM gv$aq a
       JOIN dba_queues q
           ON a.qid = q.qid

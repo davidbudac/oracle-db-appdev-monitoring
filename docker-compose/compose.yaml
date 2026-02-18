@@ -58,6 +58,28 @@ services:
       retries: 5
       start_period: 30s
 
+  traffic-generator:
+    image: gvenzl/oracle-free:23.9-slim-faststart
+    container_name: traffic-generator
+    entrypoint: ["/bin/bash", "/traffic/entrypoint.sh"]
+    volumes:
+      - ./traffic-generator:/traffic
+    depends_on:
+      free23ai:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dequeue-worker:
+    image: gvenzl/oracle-free:23.9-slim-faststart
+    container_name: dequeue-worker
+    entrypoint: ["/bin/bash", "/dequeue/entrypoint.sh"]
+    volumes:
+      - ./dequeue-worker:/dequeue
+    depends_on:
+      free23ai:
+        condition: service_healthy
+    restart: unless-stopped
+
   exporter:
     image: container-registry.oracle.com/database/observability-exporter:2.2.0
     container_name: exporter
